@@ -25,7 +25,7 @@ public class CargoManager : MonoBehaviour
     {
         truckRigidbody = GetComponent<Rigidbody>();
 
-        // На всякий случай выключаем подсветку финиша на старте игры
+       
         if (dropoffVisual != null)
         {
             dropoffVisual.SetActive(false);
