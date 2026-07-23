@@ -3,20 +3,21 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class PickupController : MonoBehaviour
 {
-    [Header("��������� ����������")]
+    [Header("Настройки автомобиля")]
     public float maxMotorTorque = 1200f;
-    public float maxSteeringAngle = 40f; // ���� �������� �� �����
-    public float minSteeringAngle = 12f; // ���� �������� �� ������������ ��������
+    public float maxSteeringAngle = 40f;
+    public float minSteeringAngle = 12f;
     public float brakeForce = 4000f;
 
-    [Header("��������� ����������")]
-    [Tooltip("��������� ���������� ����. ��� ������, ��� ��������� ������.")]
+    [Header("Плавность управления")]
     public float accelerationSmoothness = 1.2f;
-
-    [Tooltip("�������� �������� �����. ��� ������, ��� ������� ������ ������ � �������.")]
     public float steeringSmoothness = 5f;
 
-    [Header("����� �������")]
+    [Header("Анти-переворот (Стабилизаторы)")]
+    [Tooltip("Чем больше значение, тем жестче кузов сопротивляется крену.")]
+    public float antiRollForce = 5000f;
+
+    [Header("Центр тяжести")]
     public Transform centerOfMass;
 
     [Header("Wheel Colliders")]
@@ -50,6 +51,7 @@ public class PickupController : MonoBehaviour
     {
         HandleSteering();
         HandleMotorAndBraking();
+        ApplyAntiRollBars(); // Вызов системы стабилизации
         UpdateWheels();
     }
 
@@ -86,7 +88,6 @@ public class PickupController : MonoBehaviour
             }
         }
 
-        // ������ ������ 4WD
         frontLeftCollider.motorTorque = currentMotorTorque;
         frontRightCollider.motorTorque = currentMotorTorque;
         rearLeftCollider.motorTorque = currentMotorTorque;
@@ -101,22 +102,41 @@ public class PickupController : MonoBehaviour
     private void HandleSteering()
     {
         float horizontalInput = Input.GetAxis("Horizontal");
-
-        // �������� ������� �������� ������ (� ��/� ��� �������� ���������)
         float currentSpeedKmH = rb.linearVelocity.magnitude * 3.6f;
 
-        // ������������ ������������ ������������ ����. 
-        // ��� ���� �������� (��������� � ������� 80 ��/� ��� �������), ��� ������ ���� ��������.
         float speedFactor = Mathf.Clamp01(currentSpeedKmH / 80f);
         float dynamicMaxSteerAngle = Mathf.Lerp(maxSteeringAngle, minSteeringAngle, speedFactor);
-        // ������� ����, ���� ����� ����� ��������� ������
-        targetSteeringAngle = horizontalInput * dynamicMaxSteerAngle;
 
-        // ������� ������� ����� (��� ������ ������)
+        targetSteeringAngle = horizontalInput * dynamicMaxSteerAngle;
         currentSteeringAngle = Mathf.MoveTowards(currentSteeringAngle, targetSteeringAngle, Time.fixedDeltaTime * steeringSmoothness * maxSteeringAngle);
 
         frontLeftCollider.steerAngle = currentSteeringAngle;
         frontRightCollider.steerAngle = currentSteeringAngle;
+    }
+
+    // --- МАГИЯ ПРОТИВ ПЕРЕВОРОТОВ ---
+    private void ApplyAntiRollBars()
+    {
+        ApplyAntiRollToAxle(frontLeftCollider, frontRightCollider);
+        ApplyAntiRollToAxle(rearLeftCollider, rearRightCollider);
+    }
+
+    private void ApplyAntiRollToAxle(WheelCollider left, WheelCollider right)
+    {
+        WheelHit hit;
+        float travelL = 1.0f;
+        float travelR = 1.0f;
+
+        bool groundedL = left.GetGroundHit(out hit);
+        if (groundedL) travelL = (-left.transform.InverseTransformPoint(hit.point).y - left.radius) / left.suspensionDistance;
+
+        bool groundedR = right.GetGroundHit(out hit);
+        if (groundedR) travelR = (-right.transform.InverseTransformPoint(hit.point).y - right.radius) / right.suspensionDistance;
+
+        float antiRollVal = (travelL - travelR) * antiRollForce;
+
+        if (groundedL) rb.AddForceAtPosition(left.transform.up * -antiRollVal, left.transform.position);
+        if (groundedR) rb.AddForceAtPosition(right.transform.up * antiRollVal, right.transform.position);
     }
 
     private void UpdateWheels()
