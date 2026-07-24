@@ -5,8 +5,8 @@ using UnityEngine.SceneManagement;
 public class PauseManager : MonoBehaviour
 {
     [Header("Окна UI")]
-    public GameObject pauseMenuPanel;    // Главный родитель PauseMenu
-    public GameObject mainMenuWindow;    // Объект MainMenuWindow
+    public GameObject pauseMenuPanel;    // Главный родитель всего Canvas Pause/Menu
+    public GameObject mainMenuWindow;    // Объект MainMenuWindow (Кнопки: Начать, Настройки, Выход)
     public GameObject settingsWindow;    // Объект SettingsWindow
     public GameObject gameplayHUD;       // Приборная панель Dashboard
 
@@ -19,11 +19,19 @@ public class PauseManager : MonoBehaviour
     public Toggle hudToggle;
 
     private bool isPaused = false;
+    private bool isInMainMenu = true; // Флаг: находится ли игрок в самом Главном Меню при старте
 
     void Start()
     {
-        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
-        Time.timeScale = 1f;
+        // ПРИ СТАРТЕ ИГРЫ: Включаем меню и ставим мир на паузу
+        Time.timeScale = 0f;
+        isInMainMenu = true;
+        isPaused = true;
+
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
+        if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
+        if (settingsWindow != null) settingsWindow.SetActive(false);
+        if (gameplayHUD != null) gameplayHUD.SetActive(false); // Прячем спидометр в меню
 
         // Синхронизация настроек
         if (carController != null)
@@ -41,11 +49,24 @@ public class PauseManager : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        // Кнопка Escape не должна работать, если игрок находится в Главном Меню при старте
+        if (Input.GetKeyDown(KeyCode.Escape) && !isInMainMenu)
         {
             if (isPaused) ResumeGame();
             else PauseGame();
         }
+    }
+
+    // Кнопка "Начать игру" (вызывается из Главного Меню)
+    public void StartGame()
+    {
+        isInMainMenu = false;
+        isPaused = false;
+
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
+        if (gameplayHUD != null && (hudToggle == null || hudToggle.isOn)) gameplayHUD.SetActive(true); // Включаем HUD машины
+
+        Time.timeScale = 1f;
     }
 
     public void PauseGame()
@@ -53,7 +74,6 @@ public class PauseManager : MonoBehaviour
         isPaused = true;
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
 
-        // Принудительно открываем главное окно паузы и закрываем настройки
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
 
@@ -67,23 +87,42 @@ public class PauseManager : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    // ⚡ НОВЫЕ ФУНКЦИИ ПЕРЕКЛЮЧЕНИЯ ОКОН
     public void OpenSettings()
     {
-        if (mainMenuWindow != null) mainMenuWindow.SetActive(false); // Прячем главное меню
-        if (settingsWindow != null) settingsWindow.SetActive(true);   // Показываем настройки
+        if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
+        if (settingsWindow != null) settingsWindow.SetActive(true);
     }
 
     public void CloseSettings()
     {
-        if (mainMenuWindow != null) mainMenuWindow.SetActive(true);  // Возвращаем главное меню
-        if (settingsWindow != null) settingsWindow.SetActive(false); // Прячем настройки
+        if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
+        if (settingsWindow != null) settingsWindow.SetActive(false);
     }
 
     public void RestartLevel()
     {
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    // ⚡ КНОПКА "В ГЛАВНОЕ МЕНЮ" (вызывается во время паузы посреди игры)
+    public void GoToMainMenu()
+    {
+        isInMainMenu = true;
+        isPaused = true;
+        Time.timeScale = 0f;
+
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
+        if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
+        if (settingsWindow != null) settingsWindow.SetActive(false);
+        if (gameplayHUD != null) gameplayHUD.SetActive(false); // Отключаем HUD
+    }
+
+    // ⚡ КНОПКА "ВЫЙТИ" (на рабочий стол)
+    public void QuitGame()
+    {
+        Debug.Log("Выход из игры...");
+        Application.Quit(); // Работает в скомпилированной игре
     }
 
     // --- ФУНКЦИИ НАСТРОЕК ---
