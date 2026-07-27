@@ -10,6 +10,15 @@ public class PauseManager : MonoBehaviour
     public GameObject settingsWindow;
     public GameObject gameplayHUD;
 
+    [Header("Настройки прозрачности фона")]
+    [Range(0f, 1f)] public float pauseAlpha = 0.5f; // Прозрачность фона во время паузы (настраивается в инспекторе)
+    private Image bgImage; // Компонент Image фоновой панели
+
+    [Header("Кнопки Главного Меню / Паузы")]
+    public GameObject startGameButton;
+    public GameObject resumeButton;
+    public GameObject restartButton;
+
     [Header("Ссылки на компоненты машины")]
     public PickupController carController;
 
@@ -19,28 +28,37 @@ public class PauseManager : MonoBehaviour
     public Toggle hudToggle;
 
     private bool isPaused = false;
-    private bool isInMainMenu = false;
+    private bool isInMainMenu = true;
 
-    // Константы для ключей PlayerPrefs (защита от опечаток)
     private const string ABS_KEY = "Setting_ABS";
     private const string TRANSMISSION_KEY = "Setting_Transmission";
     private const string HUD_KEY = "Setting_HUD";
 
     void Start()
     {
-        Time.timeScale = 1f;
-        isInMainMenu = false;
-        isPaused = false;
+        Time.timeScale = 0f;
+        isInMainMenu = true;
+        isPaused = true;
 
-        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
-        if (mainMenuWindow != null) mainMenuWindow.SetActive(false);
+        // Получаем компонент Image с панели фона
+        if (pauseMenuPanel != null)
+        {
+            bgImage = pauseMenuPanel.GetComponent<Image>();
+            pauseMenuPanel.SetActive(true);
+        }
+
+        if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
-        if (gameplayHUD != null) gameplayHUD.SetActive(true);
+        if (gameplayHUD != null) gameplayHUD.SetActive(false);
 
-        // 1. ЗАГРУЗКА И ПРИМЕНЕНИЕ НАСТРОЕК
+        // При старте ставим полную непрозрачность фона и обновляем кнопки
+        SetBackgroundAlpha(1f);
+        UpdateMenuButtons();
+
+        // Загрузка настроек
         LoadAndApplySettings();
 
-        // 2. Слушатели для Toggles (добавляем ПОСЛЕ загрузки, чтобы не вызывать лишние сохранения)
+        // Слушатели для Toggles
         if (absToggle != null) absToggle.onValueChanged.AddListener(SetABS);
         if (autoTransmissionToggle != null) autoTransmissionToggle.onValueChanged.AddListener(SetTransmission);
         if (hudToggle != null) hudToggle.onValueChanged.AddListener(SetHUDVisibility);
@@ -70,6 +88,11 @@ public class PauseManager : MonoBehaviour
         if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
+
+        // Включаем настроенную полупрозрачность для паузы
+        SetBackgroundAlpha(pauseAlpha);
+        UpdateMenuButtons();
+
         Time.timeScale = 0f;
     }
 
@@ -107,6 +130,10 @@ public class PauseManager : MonoBehaviour
         if (mainMenuWindow != null) mainMenuWindow.SetActive(true);
         if (settingsWindow != null) settingsWindow.SetActive(false);
         if (gameplayHUD != null) gameplayHUD.SetActive(false);
+
+        // При возврате в главное меню снова делаем фон непрозрачным
+        SetBackgroundAlpha(1f);
+        UpdateMenuButtons();
     }
 
     public void QuitGame()
@@ -115,24 +142,44 @@ public class PauseManager : MonoBehaviour
         Application.Quit();
     }
 
-    // --- ФУНКЦИИ НАСТРОЕК С СОХРАНЕНИЕМ --- 
+    // Метод изменения прозрачности (Alpha-канала) цвета фона
+    private void SetBackgroundAlpha(float alphaValue)
+    {
+        if (bgImage != null)
+        {
+            Color currentColor = bgImage.color;
+            currentColor.a = alphaValue; // Меняем только параметр прозрачности (от 0 до 1)
+            bgImage.color = currentColor;
+        }
+    }
 
+    private void UpdateMenuButtons()
+    {
+        if (isInMainMenu)
+        {
+            if (startGameButton != null) startGameButton.SetActive(true);
+            if (resumeButton != null) resumeButton.SetActive(false);
+            if (restartButton != null) restartButton.SetActive(false);
+        }
+        else
+        {
+            if (startGameButton != null) startGameButton.SetActive(false);
+            if (resumeButton != null) resumeButton.SetActive(true);
+            if (restartButton != null) restartButton.SetActive(true);
+        }
+    }
+
+    // --- ФУНКЦИИ НАСТРОЕК С СОХРАНЕНИЕМ --- 
     private void LoadAndApplySettings()
     {
-        // PlayerPrefs не хранит bool, поэтому используем 1 (true) и 0 (false)
-        // Второй параметр в GetInt — это значение по умолчанию, если игра запущена впервые
-
-        // Загрузка ABS (по умолчанию включен - 1)
         bool absValue = PlayerPrefs.GetInt(ABS_KEY, 1) == 1;
         if (carController != null) carController.useABS = absValue;
         if (absToggle != null) absToggle.isOn = absValue;
 
-        // Загрузка трансмиссии (по умолчанию автомат - 1)
         bool transValue = PlayerPrefs.GetInt(TRANSMISSION_KEY, 1) == 1;
         if (carController != null) carController.isAutomatic = transValue;
         if (autoTransmissionToggle != null) autoTransmissionToggle.isOn = transValue;
 
-        // Загрузка видимости HUD (по умолчанию включен - 1)
         bool hudValue = PlayerPrefs.GetInt(HUD_KEY, 1) == 1;
         if (gameplayHUD != null) gameplayHUD.SetActive(hudValue);
         if (hudToggle != null) hudToggle.isOn = hudValue;
@@ -142,7 +189,7 @@ public class PauseManager : MonoBehaviour
     {
         if (carController != null) carController.useABS = value;
         PlayerPrefs.SetInt(ABS_KEY, value ? 1 : 0);
-        PlayerPrefs.Save(); // Записываем данные на диск
+        PlayerPrefs.Save();
     }
 
     private void SetTransmission(bool value)
@@ -159,4 +206,3 @@ public class PauseManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 }
-
